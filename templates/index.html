@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>山海宾馆房量同步台</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <style>
+      .sync-guard-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1200;
+        background: rgba(38, 31, 20, 0.38);
+        backdrop-filter: blur(2px);
+        display: grid;
+        place-items: center;
+        padding: 16px;
+      }
+
+      .sync-guard-card {
+        width: min(92vw, 480px);
+        border-radius: 14px;
+        border: 1px solid #ddcda9;
+        background: #fff9ee;
+        box-shadow: 0 20px 48px rgba(80, 64, 30, 0.24);
+        padding: 14px 16px;
+        color: #3f351f;
+      }
+
+      .sync-guard-card h4 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .sync-guard-message {
+        margin: 8px 0 6px;
+        font-size: 14px;
+        line-height: 1.45;
+        color: #5b4f35;
+      }
+
+      .sync-guard-countdown {
+        margin: 0;
+        font-size: 13px;
+        color: #6a5a35;
+      }
+
+      .sync-guard-countdown strong {
+        color: #a94335;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bg-orb orb-a"></div>
+    <div class="bg-orb orb-b"></div>
+
+    <main class="page">
+      <header class="topbar">
+        <div>
+          <h1>山海宾馆房量同步台</h1>
+        </div>
+        <div class="action-group">
+          <a href="/rooms" class="btn btn-ghost">房间管理</a>
+          <button id="openAdjustBtn" class="btn btn-primary">调整房量余量</button>
+        </div>
+      </header>
+
+      <section class="panel filters">
+        <label>
+          查看日期
+          <input id="viewDate" type="date" />
+        </label>
+        <button id="refreshBtn" class="btn btn-ghost">刷新库存</button>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title-row">
+          <h2>平台余量总览</h2>
+          <span id="inventoryHint" class="hint"></span>
+        </div>
+        <div id="inventoryCalendar" class="calendar-wrap">
+          <div class="calendar-empty">正在加载日历库存...</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title-row">
+          <h2>操作流水</h2>
+          <span class="hint">最近 10 条</span>
+        </div>
+        <div class="table-wrap">
+          <table id="historyTable">
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>到离店</th>
+                <th>房型</th>
+                <th>来源平台</th>
+                <th>方式</th>
+                <th>数量</th>
+                <th>同步变化</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div id="initModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h3>设置总房量</h3>
+          <button id="closeInitModalBtn" class="icon-btn" aria-label="关闭">×</button>
+        </div>
+
+        <form id="initForm" class="form-grid">
+          <input name="roomType" type="hidden" required />
+
+          <p class="form-note" id="initRoomTypeText">房型：-</p>
+
+          <label>
+            总房量
+            <input name="quantity" type="number" min="0" step="1" value="0" required />
+          </label>
+
+          <div class="form-actions">
+            <button type="button" id="cancelInitBtn" class="btn btn-ghost">取消</button>
+            <button type="submit" class="btn btn-primary">确定设置</button>
+          </div>
+
+          <p class="form-note">会按总房量重算该房型在系统内的可售数量（按现有订单占用自动扣减），并可选择是否生成平台同步任务。</p>
+        </form>
+      </div>
+    </div>
+
+    <div id="adjustModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h3>调整房量余量</h3>
+          <button id="closeModalBtn" class="icon-btn" aria-label="关闭">×</button>
+        </div>
+
+        <form id="adjustForm" class="form-grid">
+          <label>
+            方式
+            <select name="status" required></select>
+          </label>
+
+          <label>
+            来源平台
+            <select name="platform" required></select>
+          </label>
+
+          <label>
+            房型
+            <select name="roomType" required></select>
+          </label>
+
+          <label>
+            到店日期
+            <div class="date-input-wrap">
+              <input name="checkInDate" type="text" inputmode="numeric" placeholder="YYYY-MM-DD 或 YYYYMMDD" required />
+              <button type="button" class="date-picker-btn" data-picker-for="checkInDate" aria-label="选择到店日期">日历</button>
+              <input type="date" class="date-picker-native" data-native-picker="checkInDate" tabindex="-1" aria-hidden="true" />
+            </div>
+          </label>
+
+          <label>
+            离店日期
+            <div class="date-input-wrap">
+              <input name="checkOutDate" type="text" inputmode="numeric" placeholder="YYYY-MM-DD 或 YYYYMMDD" required />
+              <button type="button" class="date-picker-btn" data-picker-for="checkOutDate" aria-label="选择离店日期">日历</button>
+              <input type="date" class="date-picker-native" data-native-picker="checkOutDate" tabindex="-1" aria-hidden="true" />
+            </div>
+          </label>
+
+          <label id="bookingIdLabel" class="hidden">
+            <span id="bookingIdTitle">取消订单</span>
+            <select name="bookingId"></select>
+          </label>
+
+          <label id="quantityLabel">
+            数量
+            <input name="quantity" type="number" min="1" step="1" value="1" required />
+          </label>
+
+          <div id="roomPickerSection" class="room-picker-section">
+            <div class="room-picker-title">房号（可选）</div>
+            <div id="roomPickerList" class="room-picker-list"></div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" id="cancelBtn" class="btn btn-ghost">取消</button>
+            <button type="submit" class="btn btn-primary">提交调整</button>
+          </div>
+
+          <p class="form-note">按酒店逻辑处理：到店含当日，离店不占房。例如 4.10 到店、4.12 离店，只影响 4.10 和 4.11。</p>
+        </form>
+      </div>
+    </div>
+
+    <div id="bookingDetailModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h3>订单详情</h3>
+          <button id="closeBookingDetailBtn" class="icon-btn" aria-label="关闭">×</button>
+        </div>
+        <div id="bookingDetailContent" class="booking-detail-list">
+          <div class="calendar-empty">暂无订单详情</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="syncProgressModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card sync-progress-card">
+        <div class="modal-head">
+          <h3 id="syncProgressTitle">平台更新中</h3>
+          <button id="closeSyncProgressBtn" class="icon-btn" aria-label="关闭">×</button>
+        </div>
+
+        <div class="sync-progress-body">
+          <div id="syncProgressSpinner" class="sync-progress-spinner" aria-hidden="true"></div>
+          <div id="syncProgressList" class="sync-progress-list"></div>
+          <div class="sync-progress-actions">
+            <button id="giveUpSyncBtn" type="button" class="btn btn-danger hidden">放弃尝试</button>
+            <button id="retrySyncBtn" type="button" class="btn btn-primary hidden">重新尝试</button>
+          </div>
+          <section id="platformGuidePanel" class="platform-guide-panel hidden" aria-live="polite">
+            <div class="platform-guide-head">
+              <h4>平台操作引导</h4>
+              <span id="platformGuideHint" class="hint">点击按钮可直接切换到对应平台标签页。</span>
+            </div>
+            <div id="platformGuideTasks" class="platform-guide-tasks"></div>
+            <ol class="platform-guide-steps">
+              <li>先切换到需要处理的平台，完成日期与房量设置后提交。</li>
+              <li>处理完一个平台后，回到管理系统继续下一个平台。</li>
+              <li>若标签丢失，可点“重新打开平台标签”。</li>
+            </ol>
+            <div class="platform-guide-actions">
+              <button type="button" class="sync-progress-status-btn" data-action="focus-platform-tab" data-platform="携程">切换到携程</button>
+              <button type="button" class="sync-progress-status-btn" data-action="focus-platform-tab" data-platform="飞猪">切换到飞猪</button>
+              <button type="button" class="sync-progress-status-btn" data-action="focus-platform-tab" data-platform="美团">切换到美团</button>
+              <button type="button" class="sync-progress-status-btn" data-action="open-platform-tabs">重新打开平台标签</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div id="syncGuardOverlay" class="sync-guard-overlay hidden" aria-hidden="true">
+      <div class="sync-guard-card" role="status" aria-live="assertive">
+        <h4>自动同步执行中</h4>
+        <p id="syncGuardMessage" class="sync-guard-message">脚本运行中，请勿操作浏览器中的平台标签页。</p>
+        <p class="sync-guard-countdown">预计剩余：<strong id="syncGuardCountdown">--</strong></p>
+      </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

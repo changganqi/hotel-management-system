@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>启动引导 - 山海宾馆房量同步台</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="bg-orb orb-a"></div>
+    <div class="bg-orb orb-b"></div>
+
+    <main class="page bootstrap-page">
+      <header class="topbar">
+        <div>
+          <h1>启动引导</h1>
+           <p>先完成平台登录：按飞猪优先一次打开四个业务页面，减少重复查找窗口。</p>
+        </div>
+      </header>
+
+      <section class="panel bootstrap-panel">
+        <h2>步骤 1：打开登录页</h2>
+        <p class="hint">将一次性打开飞猪房态管理页 + 飞猪批量房态页 + 携程批量库存页 + 美团批量库存页。</p>
+        <p class="hint">飞猪登录后请保持该窗口开启；若手动关闭，需要重新打开登录窗口并再次登录。</p>
+
+        <div class="bootstrap-actions">
+          <button id="openLoginTabsBtn" class="btn btn-primary">打开平台页面（单浏览器四标签）</button>
+          <button id="refreshLoginStateBtn" class="btn btn-ghost">刷新登录窗口状态</button>
+        </div>
+
+        <div id="loginTabsStatus" class="bootstrap-status">登录窗口状态：未启动</div>
+      </section>
+
+      <section class="panel bootstrap-panel">
+        <h2>步骤 2：进入管理系统</h2>
+        <p class="hint">在登录页完成验证后，点击下面按钮进入库存管理界面。</p>
+
+        <div class="bootstrap-actions">
+          <a href="/dashboard" class="btn btn-primary">进入管理系统</a>
+          <a href="/rooms" class="btn btn-ghost">进入房间管理</a>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="/static/bootstrap.js"></script>
+  </body>
+</html>

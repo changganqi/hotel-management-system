@@ -1,0 +1,5 @@
+playwright==1.53.0
+python-dotenv==1.1.1
+Flask==3.0.3
+pystray==0.19.5
+Pillow==10.4.0

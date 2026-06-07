@@ -1,0 +1,31 @@
+.venv/
+.venv-build/
+__pycache__/
+*.pyc
+*.pyo
+
+# Secrets and login state
+.env
+sessions/
+
+# Local business data
+data/*.json
+data/*.txt
+data/*.backup*
+
+# Build outputs
+build/
+dist/
+releases/
+installer/staging/
+*.spec.bak
+
+# Local tutorial/media exports
+教程/
+*.mp4
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
