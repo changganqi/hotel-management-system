@@ -1,247 +1,158 @@
-# Hotel Platform Login Helper
+# 山海宾馆房量同步台
 
-This project automates login for:
+这是给小型宾馆使用的本地房量管理工具。软件会在电脑上启动一个本地管理台，并自动打开管理页、携程商家后台、飞猪后台、美团后台，方便把库存调整和平台操作放在同一套浏览器窗口里处理。
 
-- Ctrip
-- Fliggy
-- Meituan
+打包版自带 Chromium 浏览器，不需要用户安装 Python、Playwright，也不需要提前配置账号密码。各平台账号在浏览器页面里正常登录即可，登录状态保存在本机 `sessions` 目录。
 
-It uses Playwright persistent browser profiles, so your login state is saved in `sessions/` and reused next time.
+## 界面预览
 
-## Why this stack
+库存总览：
 
-Python + Playwright is a good fit because it supports:
+![库存总览](picture/1.png)
 
-- Stable browser automation on Windows
-- Persistent login sessions
-- Manual captcha completion when required
+房间管理：
 
-## Quick start
+![房间管理](picture/2.png)
 
-### Downloadable Windows installer
+调整房量余量：
 
-For non-developers, publish the bundled Windows installer from GitHub Releases:
+![调整房量余量](picture/3.png)
+
+## 普通用户怎么安装
+
+到 GitHub Releases 下载安装包：
 
 ```text
-山海宾馆房量同步台-带浏览器安装包.exe
+ShanhaiHotelSync-BundledChromium-Setup.exe
 ```
 
-This installer includes Chromium, installs the app under the current user's `LocalAppData`, creates desktop/start-menu shortcuts, and does not require Python or Playwright on the target PC. On first run, copy or edit `.env` in the installed app folder and fill your own platform credentials.
+双击运行后，软件会安装到当前 Windows 用户目录下，并创建桌面快捷方式和开始菜单入口。安装完成后打开软件，浏览器会自动出现几个标签页：
 
-The installer is intended to be uploaded as a Release asset, not committed into the source repository.
+- 山海宾馆房量同步台
+- 携程酒店商家管理后台
+- 飞猪酒店后台
+- 美团酒店商家后台
 
-### Developer setup
+第一次使用时，在对应平台页面手动登录。遇到验证码、滑块、人脸验证之类的页面，照平台要求人工完成即可。
 
-1. Create and activate a virtual env:
+## 后台和卸载
+
+软件启动后会常驻 Windows 右下角托盘。右键托盘图标，可以打开管理系统或退出软件。
+
+如果托盘图标没出现，先看 Windows 右下角的隐藏图标区域；如果仍然没有，检查安装目录下的 `logs/runtime.log`。新版安装包已经把托盘依赖完整打入包里，旧版缺少 `PIL` 时会导致托盘启动失败。
+
+卸载有两种方式：
+
+- 在开始菜单里点“卸载 山海宾馆房量同步台”
+- 在 Windows“应用和功能”里找到“山海宾馆房量同步台”卸载
+
+卸载时可以选择是否保留 `data`、`sessions`、`.env`。保留这些文件后，以后重装还能恢复库存数据和登录状态。
+
+## 主要功能
+
+- 库存总览：按日期查看各房型余量。
+- 调整房量：按入住日期、离店日期、房型、来源平台、数量记录预订或取消。
+- 房间管理：维护楼层、房间、房型和状态。
+- 平台同步队列：本地先记录待同步任务，再由自动化流程尝试写入平台。
+- 本地持久化：库存数据放在 `data/inventory_store.json`，登录状态放在 `sessions/`。
+
+## 使用习惯
+
+酒店日期按“入住当天占房，离店当天不占房”处理。比如 4 月 10 日入住、4 月 12 日离店，只影响 4 月 10 日和 4 月 11 日两晚。
+
+如果平台页面改版，自动同步可能失败；这时本地库存不会丢，失败任务会留在同步队列里，后续可以调整 XPath 或改成手工处理。
+
+## 源码里不包含什么
+
+仓库不会上传这些内容：
+
+- `.env`
+- `sessions/`
+- 真实业务数据 `data/*.json`
+- 教程视频
+- 打包生成的 `dist/`、`build/`、`releases/`
+
+这些文件会出现在本机运行目录里，但不应该提交到公开仓库。
+
+## 开发运行
+
+需要本机有 Python。建议在虚拟环境里运行：
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-```
-
-2. Install dependencies:
-
-```powershell
 pip install -r requirements.txt
 python -m playwright install chromium
+python run_system.py
 ```
 
-3. Prepare credentials:
-
-```powershell
-copy .env.example .env
-```
-
-Fill values in `.env`.
-
-If `.env` is not configured, the script will ask for username/password in terminal only when a platform really needs login.
-
-4. Run login flow:
-
-```powershell
-python login_manager.py --platform all
-```
-
-Options:
-
-- `--platform all|ctrip|fliggy|meituan`
-- `--close-after-login` (default keeps browser windows open)
-
-## Captcha and manual verification
-
-If captcha/slider appears, complete it in the browser manually. Then return to terminal and press Enter to continue.
-
-Fliggy currently uses a manual submit flow by design (to reduce anti-bot slider failures):
-
-- Script fills account/password when possible.
-- You manually click Next/Login and complete slider verification.
-
-## Notes
-
-- The script includes your provided XPath selectors as fallbacks.
-- Fliggy login URL is `https://hotel.fliggy.com/ebooking/hotelBaseInfoUv.htm#/ebk/accountsmanage/manage`.
-- Absolute XPaths can break when pages change. If a selector stops working, update it in `login_manager.py`.
-- Persistent login data is stored under `sessions/`.
-
-## Inventory management frontend
-
-This project now includes a local management system page to adjust room balance and sync to other platforms by rules.
-
-### Room type baseline
-
-- 度假大床房: 3
-- 家庭房: 4
-- 豪华双床房: 1
-- 度假双床房: 4
-
-### Synchronization rule
-
-- Date range now uses hotel stay semantics: check-in date + check-out date.
-- Example: check-in 4.10 and check-out 4.12 means only nights 4.10 and 4.11 are affected (check-out day is excluded).
-- Function 1: initialize room inventory. It sets local inventory and all platform inventory fields to the same value for the selected room type and stay range.
-- During initialization, UI asks whether to sync platforms:
-	- Confirm: create pending sync tasks for platforms.
-	- Cancel: assume platform values were already changed manually.
-- Function 2: adjust inventory by orders. You select source platform (携程/飞猪/美团/自接), stay range, room type, mode (预订/取消), and quantity.
-- 预订 means minus quantity, 取消 means plus quantity.
-- The system updates local inventory and applies the same delta to all other platforms (source platform is excluded).
-- Platform operation is currently queued as pending sync tasks in local DB (real XPath automation can be plugged in later).
-- Any invalid change (less than 0 or larger than total) is rejected entirely.
-
-### Run web app
-
-```powershell
-pip install -r requirements.txt
-python inventory_app.py
-```
-
-Open in browser:
+本地管理台地址：
 
 ```text
-http://127.0.0.1:5000
+http://127.0.0.1:5000/dashboard
 ```
 
-### One-command startup (recommended)
-
-For a packaged multi-platform management workflow, use one command to:
-
-1. Login selected platforms.
-2. Persist sessions to `sessions/`.
-3. Start Flask management system.
+常用参数：
 
 ```powershell
+python run_system.py --login-platform none
 python run_system.py --login-platform all
+python run_system.py --no-startup-tabs
+python run_system.py --no-tray
 ```
 
-Common options:
+`--login-platform all` 会按携程、飞猪、美团的登录流程跑一遍；实际使用中更常见的是直接让浏览器打开平台页面，在网页里人工登录。
 
-- `--login-platform all|none|ctrip|fliggy|meituan`
-- `--disable-auto-ctrip-sync`
-- `--auto-ctrip-sync-headless`
-- `--auto-ctrip-sync-limit 20`
+## Windows 打包
 
-When auto Ctrip sync is enabled (default), each `/api/adjust` and `/api/init-local` request will try to execute pending Ctrip tasks immediately and write back result to `syncQueue`.
-
-### Data persistence
-
-- Inventory data and operation history are stored in `data/inventory_store.json`.
-- Pending platform sync tasks are also stored in `data/inventory_store.json` under `syncQueue`.
-- Home inventory overview uses a calendar-style board and keeps the date search filter as the calendar start date.
-- Frontend files are in `templates/index.html`, `static/styles.css`, and `static/app.js`.
-
-### Ctrip automatic sync (first integration)
-
-The backend now supports executing pending Ctrip sync tasks from `syncQueue`.
-
-1. Ensure Ctrip session is logged in first:
-
-```powershell
-python login_manager.py --platform ctrip
-```
-
-2. Run pending Ctrip sync tasks (default `limit=20`, uses non-headless browser):
-
-```powershell
-Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:5000/api/sync/run-ctrip" -ContentType "application/json" -Body '{"limit":20,"headless":false}'
-```
-
-Notes:
-
-- Current version uses XPath automation on Ctrip page `batchSetRoomStatusAndQuantity`.
-- It processes tasks where `targetPlatform=携程` and `status=pending`.
-- On success, task status updates to `success`; failures are marked `failed` with `errorMessage`.
-
-### Windows packaging (start here)
-
-Build script is prepared for Windows desktop packaging with PyInstaller.
-
-Default mode is Edge runtime (smaller package): no bundled browser files.
-
-1. Build executable folder (Edge mode, recommended):
+打包脚本在 `build_windows.ps1`。默认是窗口程序，不会弹黑色命令行窗口：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\build_windows.ps1
 ```
 
-This default build creates a windowed exe (no black console window).
-Built exe icon uses `static\favicon.ico`.
-
-2. Output folder:
-
-```text
-dist\ShanhaiHotelSync
-```
-
-3. Start packaged app:
-
-```powershell
-.\dist\ShanhaiHotelSync\run_system.exe
-```
-
-After startup, the app shows a system tray icon. Right-click tray icon and choose `退出软件` to close app.
-
-Edge mode behavior:
-
-- App defaults to `LOGIN_BROWSER_CHANNEL=msedge`.
-- It uses system Edge executable and app-owned user-data-dir under `sessions\`.
-
-Optional offline mode (for PCs without Edge/Chrome):
+如果要生成给普通用户下载的离线版，使用自带 Chromium 的模式：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\build_windows.ps1 -BundleBrowser
 ```
 
-In offline mode, package includes `ms-playwright\` and app auto-uses bundled Chromium.
+输出目录：
 
-Packaged folder always includes:
-
-- `run_system.exe`
-- `templates\` / `static\` / `data\`
-
-Only offline mode additionally includes:
-
-- `ms-playwright\` (bundled browser runtime)
-
-Optional build flags:
-
-- `-SkipInstall` skip dependency install step.
-- `-NoClean` keep existing `build/` and `dist/` files.
-- `-BundleBrowser` include Playwright Chromium binaries for no-browser target PCs.
-- `-Console` build debug exe with console window.
-
-### Build release installer
-
-To produce a one-file installer for GitHub Releases:
-
-```powershell
-python -m venv .venv-build
-.\.venv-build\Scripts\python.exe -m pip install -r requirements.txt -r requirements-build.txt
-.\.venv-build\Scripts\python.exe -m playwright install chromium
-powershell -ExecutionPolicy Bypass -File .\build_windows.ps1 -SkipInstall -BundleBrowser
+```text
+dist\ShanhaiHotelSync
 ```
 
-Then package `dist\ShanhaiHotelSync` into a release zip and build the installer with `installer\installer_app.py`. The generated installer should be distributed through GitHub Releases because it contains the bundled Chromium runtime and is too large for normal source commits.
+构建 GitHub Release 安装包时，先压缩 `dist\ShanhaiHotelSync` 为 `ShanhaiHotelSync-bundled.zip`，再用 `installer\installer_app.py` 生成单文件安装器。安装器会包含：
 
+- 应用本体
+- Chromium 运行目录
+- `Uninstall.exe`
+- 桌面快捷方式
+- 开始菜单入口
+- Windows 卸载注册项
 
-# chromium打包（离线模式，包含浏览器文件，适用于没有Edge/Chrome的电脑）：
-powershell -ExecutionPolicy Bypass -File build_windows.ps1 -BundleBrowser
+## 目录说明
+
+```text
+inventory_app.py       本地管理台后端
+run_system.py          一键启动入口，负责托盘、浏览器标签页、Flask 服务
+login_manager.py       平台登录和浏览器会话管理
+platform_sync.py       平台同步任务逻辑
+templates/             页面模板
+static/                前端脚本、样式和图标
+installer/             安装器和卸载器源码
+picture/               README 用截图
+```
+
+## 版本发布
+
+安装包体积比较大，因为包含 Chromium。源码仓库只放代码和截图，安装包放到 GitHub Releases。
+
+发布前建议至少检查工作区状态，并确认没有把本机数据、登录状态或真实业务数据提交进去：
+
+```powershell
+git status --short
+```
+
+如果要校验安装包是否被改动，可以对 `.exe` 计算 SHA256。下载者拿到同一个文件时，算出来的 SHA256 应该和 Release 页面写的一样。

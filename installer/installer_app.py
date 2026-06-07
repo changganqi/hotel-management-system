@@ -13,6 +13,10 @@ from pathlib import Path
 APP_NAME = "山海宾馆房量同步台"
 DIST_NAME = "ShanhaiHotelSync"
 PAYLOAD_NAME = "ShanhaiHotelSync-bundled.zip"
+UNINSTALLER_NAME = "Uninstall.exe"
+APP_VERSION = "1.0.1"
+PUBLISHER = "changganqi"
+UNINSTALL_REG_KEY = rf"Software\Microsoft\Windows\CurrentVersion\Uninstall\{DIST_NAME}"
 
 
 def resource_path(name: str) -> Path:
@@ -59,6 +63,35 @@ def create_shortcut(shortcut_path: Path, target: Path, working_dir: Path, icon: 
     )
 
 
+def remove_shortcut(shortcut_path: Path) -> None:
+    try:
+        shortcut_path.unlink()
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
+
+
+def register_uninstall_entry(install_root: Path) -> None:
+    try:
+        import winreg
+
+        target = install_root / UNINSTALLER_NAME
+        icon = install_root / "static" / "favicon.ico"
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, UNINSTALL_REG_KEY) as key:
+            winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, APP_NAME)
+            winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, APP_VERSION)
+            winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, PUBLISHER)
+            winreg.SetValueEx(key, "InstallLocation", 0, winreg.REG_SZ, str(install_root))
+            winreg.SetValueEx(key, "DisplayIcon", 0, winreg.REG_SZ, str(icon if icon.exists() else target))
+            winreg.SetValueEx(key, "UninstallString", 0, winreg.REG_SZ, f'"{target}"')
+            winreg.SetValueEx(key, "QuietUninstallString", 0, winreg.REG_SZ, f'"{target}" --quiet --keep-data')
+            winreg.SetValueEx(key, "NoModify", 0, winreg.REG_DWORD, 1)
+            winreg.SetValueEx(key, "NoRepair", 0, winreg.REG_DWORD, 1)
+    except Exception:
+        pass
+
+
 def copy_user_state(old_root: Path, new_root: Path) -> None:
     for name in ("data", "sessions", ".env"):
         source = old_root / name
@@ -77,6 +110,9 @@ def install(*, target_root: Path | None = None) -> Path:
     payload = resource_path(PAYLOAD_NAME)
     if not payload.exists():
         raise FileNotFoundError(f"安装包缺少资源：{PAYLOAD_NAME}")
+    bundled_uninstaller = resource_path(UNINSTALLER_NAME)
+    if not bundled_uninstaller.exists():
+        raise FileNotFoundError(f"安装包缺少资源：{UNINSTALLER_NAME}")
 
     if target_root is None:
         local_appdata = Path(os.getenv("LOCALAPPDATA", str(Path.home() / "AppData" / "Local")))
@@ -85,6 +121,7 @@ def install(*, target_root: Path | None = None) -> Path:
         install_root = target_root
     temp_root = Path(tempfile.mkdtemp(prefix="ShanhaiHotelSync-install-"))
 
+    backup_root = None
     try:
         with zipfile.ZipFile(payload, "r") as archive:
             archive.extractall(temp_root)
@@ -113,9 +150,20 @@ def install(*, target_root: Path | None = None) -> Path:
             shutil.copy2(env_example, env_path)
 
         target = install_root / "ShanhaiHotelSync.exe"
+        uninstaller_target = install_root / UNINSTALLER_NAME
+        shutil.copy2(bundled_uninstaller, uninstaller_target)
+
         icon = install_root / "static" / "favicon.ico"
-        create_shortcut(desktop_dir() / f"{APP_NAME}.lnk", target, install_root, icon)
-        create_shortcut(programs_dir() / APP_NAME / f"{APP_NAME}.lnk", target, install_root, icon)
+        desktop_shortcut = desktop_dir() / f"{APP_NAME}.lnk"
+        start_menu_dir = programs_dir() / APP_NAME
+        create_shortcut(desktop_shortcut, target, install_root, icon)
+        create_shortcut(start_menu_dir / f"{APP_NAME}.lnk", target, install_root, icon)
+        create_shortcut(start_menu_dir / f"卸载 {APP_NAME}.lnk", uninstaller_target, install_root, icon)
+        remove_shortcut(programs_dir() / APP_NAME / f"卸载{APP_NAME}.lnk")
+        register_uninstall_entry(install_root)
+
+        if backup_root is not None and backup_root.exists():
+            shutil.rmtree(backup_root, ignore_errors=True)
 
         return target
     finally:

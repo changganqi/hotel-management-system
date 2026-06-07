@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import argparse
-import importlib
 import os
 import sys
 import threading
 import time
+import traceback
 from pathlib import Path
 from urllib import error as urllib_error
 from urllib import request as urllib_request
@@ -24,6 +24,28 @@ def resolve_app_base_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parent
+
+
+def log_runtime(message: str, exc: BaseException | None = None) -> None:
+    try:
+        log_dir = resolve_app_base_dir() / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "runtime.log"
+
+        lines = [f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}"]
+        if exc is not None:
+            lines.append(f"{type(exc).__name__}: {exc}")
+            lines.append("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)).rstrip())
+
+        with log_file.open("a", encoding="utf-8") as file:
+            file.write("\n".join(lines) + "\n")
+    except Exception:
+        pass
+
+    try:
+        print(message if exc is None else f"{message}: {exc}")
+    except Exception:
+        pass
 
 
 def resolve_runtime_asset_path(*relative_parts: str) -> Path:
@@ -104,10 +126,10 @@ def resolve_tray_enabled(args: argparse.Namespace) -> bool:
 
 def run_tray_icon(local_host: str, port: int) -> bool:
     try:
-        pystray = importlib.import_module("pystray")
-        pil_image = importlib.import_module("PIL.Image")
+        import pystray
+        from PIL import Image
     except Exception as exc:
-        print(f"托盘组件不可用，已回退前台运行: {exc}")
+        log_runtime("托盘组件不可用，程序已继续在后台运行", exc)
         return False
 
     dashboard_url = f"http://{local_host}:{int(port)}/dashboard"
@@ -116,18 +138,19 @@ def run_tray_icon(local_host: str, port: int) -> bool:
     image = None
     if icon_path.exists():
         try:
-            image = pil_image.open(icon_path)
+            image = Image.open(icon_path)
             image = image.convert("RGBA")
-            resample = getattr(pil_image, "Resampling", None)
+            resample = getattr(Image, "Resampling", None)
             if resample is not None:
                 image = image.resize((64, 64), resample.LANCZOS)
             else:
-                image = image.resize((64, 64), pil_image.LANCZOS)
-        except Exception:
+                image = image.resize((64, 64), Image.LANCZOS)
+        except Exception as exc:
+            log_runtime(f"托盘图标读取失败: {icon_path}", exc)
             image = None
 
     if image is None:
-        image = pil_image.new("RGB", (64, 64), color=(19, 111, 99))
+        image = Image.new("RGB", (64, 64), color=(19, 111, 99))
 
     def on_open_dashboard(icon, item) -> None:
         try:
@@ -151,7 +174,11 @@ def run_tray_icon(local_host: str, port: int) -> bool:
         pystray.MenuItem("退出软件", on_exit_app),
     )
     icon = pystray.Icon("ShanhaiHotelSync", image, "山海宾馆房量同步台", menu)
-    icon.run()
+    try:
+        icon.run()
+    except Exception as exc:
+        log_runtime("托盘启动失败，程序已继续在后台运行", exc)
+        return False
     return True
 
 
@@ -298,6 +325,7 @@ def main() -> int:
     print("启动后会自动打开单浏览器标签页：管理系统、携程、飞猪、美团。")
 
     use_tray = resolve_tray_enabled(args)
+    log_runtime(f"管理系统启动: http://{local_host}:{int(args.port)} tray={int(use_tray)}")
     if use_tray:
         server_thread = threading.Thread(
             target=run_flask_server,

@@ -63,7 +63,9 @@ $pyInstallerArgs = @(
   "--onedir",
   "--collect-all", "playwright",
   "--collect-all", "pystray",
+  "--collect-all", "PIL",
   "--hidden-import", "pystray._win32",
+  "--hidden-import", "six",
   "--add-data", "templates;templates",
   "--add-data", "static;static",
   "--add-data", "data;data",
@@ -95,19 +97,6 @@ if (-not (Test-Path $sessionsDir)) {
 
 $bundledBrowsers = Join-Path $distRoot "ms-playwright"
 $envTemplate = @"
-# Copy this file to .env and fill your own platform credentials.
-# Do not share .env or the sessions folder.
-
-CTRIP_USERNAME=
-CTRIP_PASSWORD=
-
-FLIGGY_USERNAME=
-FLIGGY_PASSWORD=
-
-MEITUAN_USERNAME=
-MEITUAN_PASSWORD=
-
-# Runtime defaults for packaged app
 LOGIN_BROWSER_CHANNEL=msedge
 SYNC_BROWSER_CHANNEL=msedge
 DATA_RETENTION_DAYS=31
@@ -123,19 +112,6 @@ if ($BundleBrowser) {
   Copy-Item -Path $sourceBrowsers -Destination $bundledBrowsers -Recurse -Force
 
   $envTemplate = @"
-# Copy this file to .env and fill your own platform credentials.
-# Do not share .env or the sessions folder.
-
-CTRIP_USERNAME=
-CTRIP_PASSWORD=
-
-FLIGGY_USERNAME=
-FLIGGY_PASSWORD=
-
-MEITUAN_USERNAME=
-MEITUAN_PASSWORD=
-
-# Runtime defaults for packaged app with bundled Chromium
 PLAYWRIGHT_BROWSERS_PATH=ms-playwright
 LOGIN_BROWSER_CHANNEL=chromium
 SYNC_BROWSER_CHANNEL=chromium
@@ -151,7 +127,7 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($envPath, $envTemplate, $utf8NoBom)
 
 Write-Host "Build complete: $distRoot"
-Write-Host "Start app: $distRoot\\run_system.exe"
+Write-Host "Start app: $distRoot\\ShanhaiHotelSync.exe"
 if ($BundleBrowser) {
   Write-Host "Bundled browser: $bundledBrowsers"
 } else {
@@ -162,4 +138,4 @@ if ($Console) {
 } else {
   Write-Host "Exe mode: windowed (no black console window)"
 }
-Write-Host "If needed, copy .env to $distRoot before first run."
+Write-Host "Runtime settings template written: $distRoot\\.env.example"
